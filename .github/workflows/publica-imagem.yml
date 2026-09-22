@@ -89,7 +89,11 @@ jobs:
           # Execucao antiga nao implanta por cima de uma mais nova: se entrou
           # commit de codigo depois deste (os do bot nao contam), a execucao
           # dele implanta.
-          novo=$(git log -1 --format=%H --invert-grep --grep='^deploy:' "${GITHUB_SHA}..HEAD")
+          # Filtra pelo ASSUNTO: --invert-grep --grep testava cada linha da
+          # mensagem, e um commit humano com "deploy:" no corpo passava por
+          # commit do bot. O awk le tudo (sem exit): com pipefail, sair cedo
+          # mataria o git log por SIGPIPE e derrubaria o job.
+          novo=$(git log --format='%H%x09%s' "${GITHUB_SHA}..HEAD" | awk -F'\t' '!f && $2 !~ /^deploy:/ {print $1; f=1}')
           if [ -n "$novo" ]; then
             echo "Ha commit mais novo ($novo); a execucao dele implanta."; exit 0
           fi
