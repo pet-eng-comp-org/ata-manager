@@ -1,0 +1,30 @@
+# PRODUCAO — este arquivo e a stack `atamanager` na VM do PET.
+#
+# O Portainer puxa este caminho deste repositorio e aplica sozinho quando ele
+# muda. Ou seja: **mexer aqui implanta**. A linha `image:` quem escreve e o CI,
+# a cada push no main (job `implanta` em publica-imagem.yml).
+#
+# As variaveis `$SPREADSHEET_ID` etc. sao referencias: os valores vivem na stack,
+# dentro do Portainer. As credenciais do Google (credentials.json, token.json)
+# ficam em /opt/ata-manager/credentials na VM e entram por volume: nao estao na
+# imagem nem no git.
+
+services:
+  atamanager:
+    # ghcr.io/pet-eng-comp-org/ata-manager:sha-803f4ae743cec456408c793cd2bedd2a9abf73fe
+    image: ghcr.io/pet-eng-comp-org/ata-manager@sha256:c36c9b593a454a9c1a48bc77be435c4abe83a89d54967cb540233f2a42c4f19f
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: always
+    environment:
+      SPREADSHEET_ID: $SPREADSHEET_ID
+      ATA_MAIN_FOLDER_ID: $ATA_MAIN_FOLDER_ID
+      SENDER_MAIL: $SENDER_MAIL
+      APP_PASSWORD: $APP_PASSWORD
+      SHARED_DRIVE_ID: $SHARED_DRIVE_ID
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - /opt/ata-manager/credentials:/ata-manager/src/credentials

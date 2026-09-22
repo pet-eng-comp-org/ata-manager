@@ -4,8 +4,8 @@ name: Publica imagem no GHCR
 # para que sempre se saiba qual codigo esta rodando — antes disto, a imagem em
 # producao nao declarava de qual commit veio.
 #
-# Para implantar: troque a tag na stack do Portainer pela que este workflow
-# publicar. A VM nao atualiza sozinha, e isso e proposital.
+# Implanta sozinho: o job `implanta` escreve o digest novo no
+# docker-compose.prod.yml, e o Portainer aplica em ate 5 minutos.
 
 on:
   push:
@@ -15,6 +15,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     # Nenhum PAT envolvido: o GITHUB_TOKEN e gerado a cada execucao e expira
     # ao final dela.
@@ -46,7 +48,8 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -54,3 +57,51 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Publicar nao e implantar: quem implanta e o commit abaixo, que o Portainer
+  # acompanha. So implanta se o codigo mudou: README e documentacao nao
+  # reiniciam o bot. `git revert` no commit de deploy volta a versao anterior; o
+  # push feito com GITHUB_TOKEN nao dispara este workflow de novo.
+  implanta:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: implanta
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Escreve o digest novo no compose de producao
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+          ANTES: ${{ github.event.before }}
+          EVENTO: ${{ github.event_name }}
+        run: |
+          if ! echo "$DIGEST" | grep -qxE 'sha256:[0-9a-f]{64}'; then
+            echo "Digest invalido: '$DIGEST'"; exit 1
+          fi
+          if [ "$EVENTO" = push ] && git cat-file -e "$ANTES^{commit}" 2>/dev/null \
+             && ! git diff --name-only "$ANTES" "$GITHUB_SHA" \
+                  | grep -qE '^(src/|Dockerfile$|documentation/requirements\.txt$)'; then
+            echo "Nada a implantar: o codigo nao mudou."; exit 0
+          fi
+
+          img="ghcr.io/${GITHUB_REPOSITORY}"
+          sed -i -E "s#(${img})@sha256:[0-9a-f]+#\1@${DIGEST}#; s#(${img}):sha-[0-9a-f]+#\1:sha-${GITHUB_SHA}#" docker-compose.prod.yml
+          if git diff --quiet -- docker-compose.prod.yml; then
+            echo "O compose ja aponta para ${DIGEST}."; exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qm "deploy: commit ${GITHUB_SHA:0:8}
+
+          Digest: ${DIGEST}
+
+          Para reverter esta implantacao: git revert deste commit." -- docker-compose.prod.yml
+          git push -q origin HEAD:main
