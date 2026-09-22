@@ -15,8 +15,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
 
     # Nenhum PAT envolvido: o GITHUB_TOKEN e gerado a cada execucao e expira
     # ao final dela.
@@ -69,6 +67,7 @@ jobs:
     concurrency: implanta
     permissions:
       contents: write
+      packages: read
 
     steps:
       - uses: actions/checkout@v5
@@ -76,32 +75,62 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Escreve o digest novo no compose de producao
         env:
-          DIGEST: ${{ needs.build.outputs.digest }}
-          ANTES: ${{ github.event.before }}
           EVENTO: ${{ github.event_name }}
         run: |
-          if ! echo "$DIGEST" | grep -qxE 'sha256:[0-9a-f]{64}'; then
-            echo "Digest invalido: '$DIGEST'"; exit 1
-          fi
-          if [ "$EVENTO" = push ] && git cat-file -e "$ANTES^{commit}" 2>/dev/null \
-             && ! git diff --name-only "$ANTES" "$GITHUB_SHA" \
-                  | grep -qE '^(src/|Dockerfile$|documentation/requirements\.txt$)'; then
-            echo "Nada a implantar: o codigo nao mudou."; exit 0
+          set -euo pipefail
+          # Execucao antiga nao implanta por cima de uma mais nova: se entrou
+          # commit de codigo depois deste (os do bot nao contam), a execucao
+          # dele implanta.
+          novo=$(git log -1 --format=%H --invert-grep --grep='^deploy:' "${GITHUB_SHA}..HEAD")
+          if [ -n "$novo" ]; then
+            echo "Ha commit mais novo ($novo); a execucao dele implanta."; exit 0
           fi
 
-          img="ghcr.io/${GITHUB_REPOSITORY}"
-          sed -i -E "s#(${img})@sha256:[0-9a-f]+#\1@${DIGEST}#; s#(${img}):sha-[0-9a-f]+#\1:sha-${GITHUB_SHA}#" docker-compose.prod.yml
+          mudou=""
+          for servico in bot; do
+            img="ghcr.io/${GITHUB_REPOSITORY,,}"
+            # Compara com o commit que esta EM PRODUCAO (o :sha- anotado no
+            # compose), nao com o push anterior: deploy que falhou ou foi
+            # cancelado entra na proxima execucao em vez de se perder.
+            ultimo=$(grep -oE "${img}:sha-[0-9a-f]+" docker-compose.prod.yml | head -1 | sed 's/.*:sha-//' || true)
+            if [ "$EVENTO" = push ] && [ -n "$ultimo" ] && git cat-file -e "${ultimo}^{commit}" 2>/dev/null; then
+              if ! git diff --name-only "$ultimo" "$GITHUB_SHA" | awk '!/^(README|LICENSE|docker-compose\.prod\.yml$|\.github\/|documentation\/)/ || /^documentation\/requirements\.txt$/ {f=1} END {exit !f}'; then
+                continue
+              fi
+            fi
+            digest=$(docker buildx imagetools inspect "${img}:sha-${GITHUB_SHA}" --format '{{json .Manifest}}' | jq -r .digest)
+            # Digest vazio apagaria a imagem do compose e derrubaria o servico.
+            if ! echo "$digest" | grep -qxE 'sha256:[0-9a-f]{64}'; then
+              echo "Digest invalido para ${img}: '${digest}'"; exit 1
+            fi
+            sed -i -E "s#(${img})@sha256:[0-9a-f]+#\1@${digest}#; s#(${img}):sha-[0-9a-f]+#\1:sha-${GITHUB_SHA}#" docker-compose.prod.yml
+            # Linha que nao casou (imagem renomeada, dono novo) nao pode passar em verde.
+            if ! grep -qF "${img}@${digest}" docker-compose.prod.yml; then
+              echo "A linha image: de ${img} nao foi encontrada no compose"; exit 1
+            fi
+            mudou="$mudou $servico"
+          done
+
           if git diff --quiet -- docker-compose.prod.yml; then
-            echo "O compose ja aponta para ${DIGEST}."; exit 0
+            echo "Nada a implantar: nenhum servico mudou desde o que esta em producao."; exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qm "deploy: commit ${GITHUB_SHA:0:8}
-
-          Digest: ${DIGEST}
+          git commit -qm "deploy:$mudou no commit ${GITHUB_SHA:0:8}
 
           Para reverter esta implantacao: git revert deste commit." -- docker-compose.prod.yml
-          git push -q origin HEAD:main
+          # Merge que entrou entre o checkout e o push: rebase e tenta de novo.
+          for tentativa in 1 2 3; do
+            git push -q origin HEAD:main && exit 0
+            sleep 5; git pull -q --rebase origin main
+          done
+          echo "O push do commit de deploy falhou 3 vezes"; exit 1
