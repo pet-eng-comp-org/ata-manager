@@ -11,6 +11,7 @@
 
 services:
   atamanager:
+    container_name: atamanager
     # ghcr.io/pet-eng-comp-org/ata-manager:sha-29af687d0a0e698224d2e3a180485687a76389e7
     image: ghcr.io/pet-eng-comp-org/ata-manager@sha256:9ce2958fbb4b7401049658287e9a3c5984ee25b96008921d7aca6a77837cc151
     logging:
