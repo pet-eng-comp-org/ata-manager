@@ -32,10 +32,14 @@ def main():
     print("Current time:", current_time)
     
     print("Running script!")
+    spreadsheet.refresh()
     ata_link = drive.copy_weekly_ata(ATA_MAIN_FOLDER_ID)
     students = spreadsheet.get_students()
     # ===============================================
     writer_name = spreadsheet.get_todays_writer()
+    if writer_name is None:
+        print("Ninguem marcado como presente na planilha; nenhum e-mail enviado.")
+        return
     send_emails(students, writer_name, ata_link, SENDER_MAIL)
     print('-> All done!')
 
