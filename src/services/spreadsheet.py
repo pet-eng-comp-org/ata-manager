@@ -80,18 +80,38 @@ class Spreadsheet:
       schedule.every().sunday.at(self.get_time()).do(main)
 
   # ===============================================
-  def get_todays_writer(self):
-    matrix = self.content
-    matrix.pop(0)
+  # Le a planilha de novo. O processo fica no ar por semanas, e sem isto cada
+  # execucao semanal usava o conteudo lido na subida, com os status velhos.
+  def refresh(self):
+    self.content = self.__get_content(self.spreadsheetId, self.range)
 
-    for i,person in enumerate(matrix):
-      #Caso a pessoa não esteja presente, pula para o próximo
-      if int(person[3]) == 0:
-        continue
-      #Caso a pessoa não tenha preenchido a ata ainda
-      if int(person[1]) == 0:
-        name = person[0]
-        self.__update_status(i)
-        return name
-    self.__reset_status()
-    return self.get_todays_writer()
+  # ===============================================
+  # Linha incompleta (celula vazia no fim) vem mais curta da API do Sheets.
+  @staticmethod
+  def __campo(linha, i):
+    return linha[i] if len(linha) > i else ""
+
+  @staticmethod
+  def __numero(valor):
+    try:
+      return int(valor)
+    except (TypeError, ValueError):
+      return 0
+
+  # ===============================================
+  # Escolhe o primeiro presente (coluna D = 1) que ainda nao escreveu a ata
+  # (coluna B = 0). Se todos os presentes ja escreveram, zera os status e
+  # comeca a rodada de novo. Sem ninguem presente, devolve None.
+  def get_todays_writer(self):
+    pessoas = self.content[1:]
+    for rodada in range(2):
+      for i, pessoa in enumerate(pessoas):
+        nome = self.__campo(pessoa, 0).strip()
+        if not nome or self.__numero(self.__campo(pessoa, 3)) == 0:
+          continue
+        if rodada == 1 or self.__numero(self.__campo(pessoa, 1)) == 0:
+          self.__update_status(i)
+          return nome
+      if rodada == 0:
+        self.__reset_status()
+    return None
