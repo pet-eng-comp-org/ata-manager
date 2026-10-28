@@ -11,6 +11,11 @@ updates:
   # O Dockerfile instala por este arquivo.
   - package-ecosystem: pip
     directory: /documentation
+    cooldown:
+      # Versao nova so e proposta depois de 7 dias publicada: pacote
+      # sequestrado costuma ser descoberto e retirado nesse prazo. Correcao
+      # de seguranca nao espera (o cooldown nao vale para ela).
+      default-days: 7
     schedule:
       interval: weekly
       day: monday
@@ -25,11 +30,15 @@ updates:
 
   - package-ecosystem: docker
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
 
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
     groups:
