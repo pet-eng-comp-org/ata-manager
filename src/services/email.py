@@ -8,19 +8,35 @@ load_dotenv()
 APP_PASSWORD = os.getenv("APP_PASSWORD")
 
 # ===============================================
-def get_body(student_name, writer_name, ata_link):
+def get_body(student_name, writer_name, conductor_name, ata_link):
     body = f"""
     <h3>Boa tarde, {student_name}!</h3> 
     <h4>O(a) responsável pela ATA de hoje é {writer_name}!</h4>
+    <h4>O(a) condutor(a) de hoje é {conductor_name}!</h4>
     <a href="{ata_link}"><h4>ATA de hoje</h4></a>
     """
     body_ata_writer = f"""
     <h3>Boa tarde, {writer_name}!</h3> 
     <h4>Você é responsável pela ATA de hoje!</h4>
+    <h4>O(a) condutor(a) de hoje é {conductor_name}!</h4>
     <a href="{ata_link}"><h4>ATA de hoje</h4></a>
     """
+    body_ata_conductor = f"""
+    <h3>Boa tarde, {conductor_name}!</h3>
+    <h4>O(a) responsável pela ATA de hoje é {writer_name}!</h4>
+    <h4>Você é o(a) condutor(a) de hoje!</h4>
+    <a href="{ata_link}"><h4>ATA de hoje</h4></a>
+    """
+    if student_name == writer_name and student_name == conductor_name:
+        return f"""
+        <h3>Boa tarde, {student_name}!</h3>
+        <h4>Você é responsável pela ATA e condutor(a) de hoje!</h4>
+        <a href="{ata_link}"><h4>ATA de hoje</h4></a>
+        """
     if student_name == writer_name:
         return body_ata_writer
+    if student_name == conductor_name:
+        return body_ata_conductor
     return body
 
 # ===============================================
@@ -41,15 +57,15 @@ def send_email(body, sender, receiver):
     print(f'Email enviado para {receiver}')
 
 # =====================================================
-def send_emails(students, writer_name, ata_link, sender):
+def send_emails(students, writer_name, conductor_name, ata_link, sender):
     for student in students:
         try:
-            body = get_body(student['name'], writer_name, ata_link)
+            body = get_body(student['name'], writer_name, conductor_name, ata_link)
             send_email(body, sender, student['email'])
         except:
             print(f"Could not sent email to {student['email']}. Trying again!")
             try:
-                body = get_body(student['name'], writer_name, ata_link)
+                body = get_body(student['name'], writer_name, conductor_name, ata_link)
                 send_email(body, sender, student['email'])
             except:
                 print("Failure. Going to next email!")

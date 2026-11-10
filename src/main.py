@@ -16,7 +16,7 @@ TOKEN_PATH = './src/credentials/token.json'
 
 # ===============================================
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
-RANGE = "!A1:F20"
+RANGE = "A1:G20"
 
 # ===============================================
 ATA_MAIN_FOLDER_ID = os.getenv("ATA_MAIN_FOLDER_ID")
@@ -36,11 +36,11 @@ def main():
     ata_link = drive.copy_weekly_ata(ATA_MAIN_FOLDER_ID)
     students = spreadsheet.get_students()
     # ===============================================
-    writer_name = spreadsheet.get_todays_writer()
-    if writer_name is None:
-        print("Ninguem marcado como presente na planilha; nenhum e-mail enviado.")
+    writer_name, conductor_name = spreadsheet.get_todays_responsibles()
+    if writer_name is None or conductor_name is None:
+        print("Sao necessarios pelo menos dois membros presentes para selecionar writer e condutor; nenhum e-mail enviado.")
         return
-    send_emails(students, writer_name, ata_link, SENDER_MAIL)
+    send_emails(students, writer_name, conductor_name, ata_link, SENDER_MAIL)
     print('-> All done!')
 
 if __name__ == '__main__':

@@ -19,8 +19,8 @@ class Spreadsheet:
     return values  
 
   # ===============================================
-  def __update_status(self, index):
-    range = f"B{index+2}:B{index+3}"
+  def __update_status(self, index, column):
+    range = f"{column}{index+2}"
     value = [[1]]
     try:
       self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId, 
@@ -30,11 +30,14 @@ class Spreadsheet:
       print(error)
 
   # ===============================================
-  def __reset_status(self): 
-    array = [[0]]*13
+  def __reset_status(self, column):
+    last_row = len(self.content)
+    if last_row < 2:
+      return
+    array = [[0] for _ in range(last_row - 1)]
     try:
       self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId, 
-      range="!B2:B14", valueInputOption="USER_ENTERED", body={'values': array}).execute()
+      range=f"{column}2:{column}{last_row}", valueInputOption="USER_ENTERED", body={'values': array}).execute()
       print('Status reseted sucefully!')
     except HttpError as error:
       print(error)
@@ -99,19 +102,39 @@ class Spreadsheet:
       return 0
 
   # ===============================================
-  # Escolhe o primeiro presente (coluna D = 1) que ainda nao escreveu a ata
-  # (coluna B = 0). Se todos os presentes ja escreveram, zera os status e
-  # comeca a rodada de novo. Sem ninguem presente, devolve None.
-  def get_todays_writer(self):
+  # Seleciona o primeiro presente com status 0 para o cargo. Se todos os
+  # presentes ja estiverem com status 1, reinicia a rodada desse cargo.
+  def __get_todays_responsible(self, status_index, status_column):
     pessoas = self.content[1:]
-    for rodada in range(2):
-      for i, pessoa in enumerate(pessoas):
-        nome = self.__campo(pessoa, 0).strip()
-        if not nome or self.__numero(self.__campo(pessoa, 3)) == 0:
-          continue
-        if rodada == 1 or self.__numero(self.__campo(pessoa, 1)) == 0:
-          self.__update_status(i)
-          return nome
-      if rodada == 0:
-        self.__reset_status()
-    return None
+    presentes = [
+      (i, pessoa)
+      for i, pessoa in enumerate(pessoas)
+      if self.__campo(pessoa, 0).strip()
+      and self.__numero(self.__campo(pessoa, 3)) != 0
+    ]
+    if not presentes:
+      return None
+
+    responsavel = next(
+      (
+        (i, pessoa)
+        for i, pessoa in presentes
+        if self.__numero(self.__campo(pessoa, status_index)) == 0
+      ),
+      None,
+    )
+    if responsavel is None:
+      self.__reset_status(status_column)
+      responsavel = presentes[0]
+
+    index, pessoa = responsavel
+    self.__update_status(index, status_column)
+    return self.__campo(pessoa, 0).strip()
+
+  # Writer usa a coluna B para controlar sua propria rodada.
+  def get_todays_writer(self):
+    return self.__get_todays_responsible(1, "B")
+
+  # Condutor usa a coluna G, independente do status do writer.
+  def get_todays_conductor(self):
+    return self.__get_todays_responsible(6, "G")

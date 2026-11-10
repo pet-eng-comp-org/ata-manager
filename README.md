@@ -16,7 +16,8 @@
  - A terceira coluna corresponde aos respectivos email dos petianos.
  - A quarta coluna (PRESENÇA) corresponde a quem está presente na reunião. Caso a pessoa não esteja presente e for sua vez de preencher a ATA, ela será pulada nesta rodada e acionada na próxima. **Nesta coluna o Rodrigo sempre terá o valor 0, pois ele não preenche a ATA**.
  - A quinta coluna corresponde ao horário em que o script irá funcionar. **Atente-se ao formato hh:mm**.
- - A sexta e última coluna possui o dia da reunião. **Só podem ser utilizados dias de segunda-feira à sexta-feira. Os nomes dos dias são com letra minúscula e separados por hífem**.
+ - A sexta coluna possui o dia da reunião. **Só podem ser utilizados dias de segunda-feira à sexta-feira. Os nomes dos dias são com letra minúscula e separados por hífem**.
+ - A sétima coluna (G) deve conter o status do condutor: 1 para quem já conduziu e 0 para quem ainda não conduziu. A seleção segue a ordem da planilha, considerando apenas membros presentes e diferentes do writer; a rodada do condutor reinicia quando todos os demais candidatos presentes já tiverem status 1. Writer e condutor devem ser pessoas diferentes; por isso, são necessários pelo menos dois membros presentes.
  - O script recolhe os dados da planilha toda vez que ele roda, ou seja, se deseja mudar algum parâmetro da planilha, o script só colherá os dados no dia em que foi agendado previamente (com valores antigos da planilha). **Caso precise mudar algo de imediato, pare a sua execução e inicie novamente**.
  - Esta planilha deve estar numa pasta acompanhada do **Modelo Ata** (O arquivo deve ter exatamente este nome) e de vários diretórios com o nome de todos os meses do ano com as iniciais maiúsculas. 
     ![image](documentation/assets/pasta.png)
