@@ -12,8 +12,8 @@
 services:
   ata-manager:
     container_name: ata-manager
-    # ghcr.io/pet-eng-comp-org/ata-manager:sha-40d05c3b8ac0e282eaa6dff82b258a7930f55ca2
-    image: ghcr.io/pet-eng-comp-org/ata-manager@sha256:ac3daf8a1c1e7ed72e35e68ca46a9070395bcd90708c684ff1a0a0da745a898a
+    # ghcr.io/pet-eng-comp-org/ata-manager:sha-589e0157c52d57ac55bf96c1dd85d8ded92cba75
+    image: ghcr.io/pet-eng-comp-org/ata-manager@sha256:339c43504df8278fb25bc58172a0a95a17ac8c5fc729dce81c724778c6924fcf
     logging:
       driver: json-file
       options:
