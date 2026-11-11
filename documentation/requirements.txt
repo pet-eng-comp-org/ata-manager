@@ -2,7 +2,7 @@ certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
 cryptography==50.0.2
-google-api-core==2.43.0
+google-api-core==2.43.2
 google-api-python-client==2.201.0
 google-auth==2.62.0
 google-auth-httplib2==0.4.4
@@ -10,8 +10,8 @@ google-auth-oauthlib==1.5.0
 googleapis-common-protos==1.76.0
 httplib2==0.32.1
 idna==3.20
-oauthlib==4.0.0
-opentelemetry-api==1.45.1
+oauthlib==4.0.1
+opentelemetry-api==1.45.2
 proto-plus==1.29.0
 protobuf==7.36.2
 pyasn1==0.6.5
