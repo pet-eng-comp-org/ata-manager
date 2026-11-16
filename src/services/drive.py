@@ -6,6 +6,9 @@ import os
 load_dotenv()
 SHARED_DRIVE_ID = os.getenv("SHARED_DRIVE_ID")
 
+# Ver o comentario em spreadsheet.py: a conexao cai enquanto o bot fica ocioso.
+NUM_RETRIES = 3
+
 MONTHS_PORTUGUESE = {
  1: 'Janeiro',
  2: 'Fevereiro',
@@ -47,10 +50,14 @@ class Drive:
         # print(f'fileId: {fileId}')
         reqBody = { 'parents': [ folderId ], 'name': new_name }
 
+        # Sem num_retries de proposito: se o Google receber o pedido e a resposta
+        # se perder, uma nova tentativa criaria uma segunda copia da ata. As
+        # chamadas files().list feitas antes (com retentativa) ja reabrem a
+        # conexao do Drive, entao esta chamada sai por uma conexao nova.
         try:
             result = self.service.files().copy(
                     supportsAllDrives=True,
-                    fileId=fileId, 
+                    fileId=fileId,
                     body=reqBody,
                     fields='webViewLink'
             ).execute()
@@ -72,7 +79,7 @@ class Drive:
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
                     corpora='drive'
-            ).execute()
+            ).execute(num_retries=NUM_RETRIES)
 
             items = results.get('files', [])
 
@@ -98,7 +105,7 @@ class Drive:
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
                     corpora='drive'
-            ).execute()
+            ).execute(num_retries=NUM_RETRIES)
             folders = results.get('files', [])
             foldersDictionary = {}
 

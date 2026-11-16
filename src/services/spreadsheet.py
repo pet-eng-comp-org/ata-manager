@@ -1,6 +1,11 @@
 from googleapiclient.errors import HttpError
 import schedule
 
+# O processo fica dias ocioso entre reunioes e a conexao HTTPS com o Google
+# cai nesse meio-tempo. Com retentativas, a biblioteca reabre a conexao em vez
+# de estourar BrokenPipeError / ConnectionResetError.
+NUM_RETRIES = 3
+
 class Spreadsheet:
   # ===============================================
   def __init__(self, service, spreadsheet_id, range):
@@ -11,8 +16,9 @@ class Spreadsheet:
 
   # ===============================================
   def __get_content(self, spreadsheet_id, range):
+    values = []
     try:
-      content = self.service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range).execute()
+      content = self.service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range).execute(num_retries=NUM_RETRIES)
       values = content.get('values', [])
     except HttpError as error:
       print(error)
@@ -24,7 +30,7 @@ class Spreadsheet:
     value = [[1]]
     try:
       self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId, 
-      range=range, valueInputOption="USER_ENTERED", body={'values': value}).execute()
+      range=range, valueInputOption="USER_ENTERED", body={'values': value}).execute(num_retries=NUM_RETRIES)
       print('Status updated successfully!')
     except HttpError as error:
       print(error)
@@ -37,7 +43,7 @@ class Spreadsheet:
     array = [[0] for _ in range(last_row - 1)]
     try:
       self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId, 
-      range=f"{column}2:{column}{last_row}", valueInputOption="USER_ENTERED", body={'values': array}).execute()
+      range=f"{column}2:{column}{last_row}", valueInputOption="USER_ENTERED", body={'values': array}).execute(num_retries=NUM_RETRIES)
       print('Status reseted sucefully!')
     except HttpError as error:
       print(error)
@@ -102,39 +108,45 @@ class Spreadsheet:
       return 0
 
   # ===============================================
-  # Seleciona o primeiro presente com status 0 para o cargo. Se todos os
-  # presentes ja estiverem com status 1, reinicia a rodada desse cargo.
-  def __get_todays_responsible(self, status_index, status_column):
-    pessoas = self.content[1:]
-    presentes = [
+  # Presentes: linhas com nome (coluna A) e presenca (coluna D) diferente de 0.
+  def __presentes(self):
+    return [
       (i, pessoa)
-      for i, pessoa in enumerate(pessoas)
+      for i, pessoa in enumerate(self.content[1:])
       if self.__campo(pessoa, 0).strip()
       and self.__numero(self.__campo(pessoa, 3)) != 0
     ]
-    if not presentes:
-      return None
 
+  # ===============================================
+  # Seleciona, entre os candidatos, o primeiro com status 0 para o cargo. Se
+  # todos ja estiverem com status 1, reinicia a rodada desse cargo.
+  def __get_todays_responsible(self, candidatos, status_index, status_column):
     responsavel = next(
       (
         (i, pessoa)
-        for i, pessoa in presentes
+        for i, pessoa in candidatos
         if self.__numero(self.__campo(pessoa, status_index)) == 0
       ),
       None,
     )
     if responsavel is None:
       self.__reset_status(status_column)
-      responsavel = presentes[0]
+      responsavel = candidatos[0]
 
     index, pessoa = responsavel
     self.__update_status(index, status_column)
-    return self.__campo(pessoa, 0).strip()
+    return index, self.__campo(pessoa, 0).strip()
 
-  # Writer usa a coluna B para controlar sua propria rodada.
-  def get_todays_writer(self):
-    return self.__get_todays_responsible(1, "B")
+  # ===============================================
+  # Devolve (writer, condutor), sempre pessoas diferentes. Writer usa a coluna
+  # B e condutor a coluna G, cada um com sua propria rodada. Com menos de dois
+  # presentes devolve (None, None) e nao marca nenhum status.
+  def get_todays_responsibles(self):
+    presentes = self.__presentes()
+    if len(presentes) < 2:
+      return None, None
 
-  # Condutor usa a coluna G, independente do status do writer.
-  def get_todays_conductor(self):
-    return self.__get_todays_responsible(6, "G")
+    writer_index, writer = self.__get_todays_responsible(presentes, 1, "B")
+    candidatos = [(i, pessoa) for i, pessoa in presentes if i != writer_index]
+    _, conductor = self.__get_todays_responsible(candidatos, 6, "G")
+    return writer, conductor

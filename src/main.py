@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import schedule
 import time
+import traceback
 import os
 
 load_dotenv()
@@ -29,9 +30,18 @@ spreadsheet = Spreadsheet(spread_service, SPREADSHEET_ID, RANGE)
 
 def main():
     print("Release time:", release_time)
-    print("Current time:", current_time)
-    
+    print("Current time:", datetime.now().strftime("%H:%M:%S"))
+
     print("Running script!")
+    # Uma excecao aqui derrubava o processo inteiro: o container reiniciava
+    # alguns segundos depois do horario e o job so voltava na semana seguinte.
+    try:
+        run_job()
+    except Exception:
+        traceback.print_exc()
+        print("Job failed; waiting for the next scheduled run.")
+
+def run_job():
     spreadsheet.refresh()
     ata_link = drive.copy_weekly_ata(ATA_MAIN_FOLDER_ID)
     students = spreadsheet.get_students()
